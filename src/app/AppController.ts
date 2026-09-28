@@ -18,6 +18,20 @@ import {
   NavFrameGrabber,
   DepthRays,
 } from '@/features/navigation/NavigationController';
+import { vision, OfflineError } from '@/services/vision';
+
+/** Cloud prompts for the camera-powered "detection" features (no on-device ML). */
+const OCR_PROMPT =
+  'You are reading a document to a blind person. Extract ALL readable text in ' +
+  'the image, in natural reading order (top to bottom, left to right). Return ' +
+  'only the text content, with no commentary. If there is no readable text, ' +
+  'reply with exactly NO_TEXT.';
+const OBSTACLE_PROMPT =
+  'You are helping a blind person walk safely. From this forward-facing photo, ' +
+  'list up to three obstacles or objects in their path, nearest first. For each, ' +
+  'give the name, a rough distance (for example, about two meters), and a ' +
+  'direction (left, ahead, or right), as one short spoken sentence each. If the ' +
+  'path looks clear, reply with exactly: Path looks clear.';
 
 const HELP_TEXT =
   'You can say: read this, what is in front of me, start obstacle detection, ' +
@@ -40,6 +54,10 @@ export class AppController {
   readonly summary: SummaryController;
   readonly live: LiveController;
   readonly navigation: NavigationController;
+
+  /** Periodic cloud obstacle-scan loop state. */
+  private obstacleTimer: ReturnType<typeof setInterval> | null = null;
+  private obstacleInFlight = false;
 
   constructor(private hooks: AppHooks) {
     this.voice = new VoiceController({
@@ -99,32 +117,122 @@ export class AppController {
     await this.dispatch(intent.name, intent.target);
   }
 
+  // ---- Cloud-powered camera features (no on-device ML) --------------------
+
+  /** Snap the page, OCR it with the vision model, then read it aloud. */
+  private async readViaCloud(): Promise<void> {
+    this.voice.reading('Reading the page. Hold the camera steady.');
+    const media = await this.hooks.capturePhoto();
+    if (!media) {
+      this.voice.answer("I couldn't use the camera. Please check camera permission.");
+      return;
+    }
+    try {
+      const text = await vision.describe({
+        prompt: OCR_PROMPT,
+        imagesBase64: media.imagesBase64,
+        maxTokens: 800,
+      });
+      if (!text || text.trim().toUpperCase().includes('NO_TEXT')) {
+        this.voice.reading('I could not find any text. Hold the page steady and a bit closer, then say read this again.');
+        return;
+      }
+      this.reader.loadText(text);
+    } catch (e) {
+      this.speakVisionError(e);
+    }
+  }
+
+  /** One-shot "what's in front of me" via a single photo. */
+  private async checkAheadViaCloud(): Promise<void> {
+    this.voice.answer('Checking ahead.');
+    const media = await this.hooks.capturePhoto();
+    if (!media) {
+      this.voice.answer("I couldn't use the camera. Please check camera permission.");
+      return;
+    }
+    try {
+      const text = await vision.describe({
+        prompt: OBSTACLE_PROMPT,
+        imagesBase64: media.imagesBase64,
+        maxTokens: 200,
+      });
+      this.voice.answer(text);
+    } catch (e) {
+      this.speakVisionError(e);
+    }
+  }
+
+  /** Periodic obstacle scanning: take a photo every few seconds and speak it. */
+  private startCloudObstacleLoop(): void {
+    if (this.obstacleTimer) return;
+    this.voice.answer('Obstacle detection on. I will check the path every few seconds.');
+    const tick = async () => {
+      if (this.obstacleInFlight) return;
+      this.obstacleInFlight = true;
+      try {
+        const media = await this.hooks.capturePhoto();
+        if (media) {
+          const text = await vision.describe({
+            prompt: OBSTACLE_PROMPT,
+            imagesBase64: media.imagesBase64,
+            maxTokens: 160,
+          });
+          if (text && !/path looks clear/i.test(text)) {
+            // Speak at navigation priority so it outranks ordinary answers.
+            this.voice.navigation(text, 'obstacle');
+          }
+        }
+      } catch (e) {
+        this.speakVisionError(e);
+        this.stopCloudObstacleLoop();
+      } finally {
+        this.obstacleInFlight = false;
+      }
+    };
+    void tick();
+    this.obstacleTimer = setInterval(() => void tick(), 4500);
+  }
+
+  private stopCloudObstacleLoop(): void {
+    if (this.obstacleTimer) clearInterval(this.obstacleTimer);
+    this.obstacleTimer = null;
+    this.voice.cancelTag('obstacle');
+  }
+
+  private speakVisionError(e: unknown): void {
+    if (e instanceof OfflineError) {
+      this.voice.answer('This needs internet, or an A P I key that is not set.');
+    } else {
+      this.voice.answer('Sorry, I could not analyze that. Please try again.');
+    }
+    debugLog('vision-error', String(e), 'error');
+  }
+
   private async dispatch(name: IntentName, target?: string): Promise<void> {
     switch (name) {
-      // ---- Reader ----
+      // ---- Reader (cloud OCR) ----
       case 'reader.start':
         this.modes.setPrimary('reader');
-        this.reader.start();
+        await this.readViaCloud();
         break;
 
-      // ---- Obstacle ----
+      // ---- Obstacle (cloud, periodic photo) ----
       case 'obstacle.start':
         this.modes.setObstacleOverlay(true);
-        this.obstacle.start();
+        this.startCloudObstacleLoop();
         break;
       case 'obstacle.stop':
-        this.obstacle.stop();
+        this.stopCloudObstacleLoop();
         this.modes.setObstacleOverlay(false);
         break;
       case 'obstacle.oneshot':
-        this.obstacle.describeAhead();
+        await this.checkAheadViaCloud();
         break;
 
       // ---- Navigation ----
       case 'navigation.start':
         this.modes.setPrimary('navigation');
-        this.modes.setObstacleOverlay(true);
-        this.obstacle.start();
         await this.navigation.start(target ?? 'door');
         break;
 
@@ -235,17 +343,21 @@ export class AppController {
         this.navigation.stop();
         break;
     }
+    // Always stop the obstacle scan loop on "stop"/"cancel".
+    this.stopCloudObstacleLoop();
+    this.modes.setObstacleOverlay(false);
     this.voice.stopSpeaking();
     this.modes.setPrimary('idle');
+  }
+
+  async dispose(): Promise<void> {
+    this.stopCloudObstacleLoop();
+    await this.voice.dispose();
   }
 
   private setLang(lang: Language): void {
     this.voice.setLanguage(lang);
     const names = { en: 'English', hi: 'Hindi', ta: 'Tamil' } as const;
     this.voice.answer(`Switched to ${names[lang]}.`);
-  }
-
-  async dispose(): Promise<void> {
-    await this.voice.dispose();
   }
 }

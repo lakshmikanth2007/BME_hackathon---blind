@@ -35,6 +35,21 @@ export class ReaderController {
     debugLog('reader', 'start -> framing');
   }
 
+  /**
+   * Cloud path: load already-extracted text (from the vision model's OCR) and
+   * start reading it immediately, with full pause/repeat/skip/back support.
+   */
+  loadText(text: string): void {
+    this.stitcher.reset();
+    this.framing.reset();
+    this.buffer.reset();
+    this.buffer.setSentences(toSentences(text));
+    this.state = 'reading';
+    this.reading = false;
+    debugLog('reader', 'cloud text loaded -> reading');
+    this.readNext();
+  }
+
   /** Called by the camera layer while framing, with detected page geometry. */
   onFrameGeometry(g: PageGeometry): void {
     if (this.state !== 'framing') return;
