@@ -40,6 +40,7 @@ export default function App(): React.JSX.Element {
   const [showDebug, setShowDebug] = useState(false);
   const [listenState, setListenState] = useState('idle');
   const [ready, setReady] = useState(false);
+  const [camGranted, setCamGranted] = useState(false);
   const lastTap = useRef(0);
   const cameraRef = useRef<Camera>(null);
   const device = useCameraDevice('back');
@@ -116,6 +117,7 @@ export default function App(): React.JSX.Element {
           /* ignore */
         }
       }
+      setCamGranted(camStatus === 'granted');
       setReady(true);
       app.greet();
 
@@ -161,13 +163,14 @@ export default function App(): React.JSX.Element {
   return (
     <View style={styles.root}>
       <StatusBar style="light" />
-      {device && ready ? (
+      {device && ready && camGranted ? (
         <Camera
           ref={cameraRef}
           style={StyleSheet.absoluteFill}
           device={device}
           isActive={true}
           photo={true}
+          onError={(e) => debugLog('camera', `Camera error: ${e.message}`, 'error')}
         />
       ) : null}
       {/* Full-screen touch layer over the camera preview. */}

@@ -51,7 +51,9 @@ export class VoiceController {
   /** Auto-retries for the current listen session, so a missed start doesn't
    * force the user to double-tap again. */
   private listenRetries = 0;
-  private static MAX_LISTEN_RETRIES = 2;
+  private static MAX_LISTEN_RETRIES = 1;
+  /** Delay before a retry, long enough to avoid ERROR_TOO_MANY_REQUESTS. */
+  private static RETRY_DELAY_MS = 900;
 
   /** Last thing said at each priority, for "repeat". */
   private lastSpoken = new Map<SpeechPriority, string>();
@@ -262,21 +264,27 @@ export class VoiceController {
       );
       return;
     }
-    if (m.includes('network') || m.startsWith('2')) {
+    if (m.includes('network') || m.startsWith('2') || m.startsWith('1 ')) {
       this.setListenState('idle');
       this.answer('Speech recognition needs an internet connection.');
       return;
     }
+    // Code 10 = too many requests: the service is rate-limiting us. Never retry
+    // (that makes it worse) — just wait and let the user try again.
+    if (m.startsWith('10')) {
+      this.setListenState('idle');
+      haptics.tick();
+      return;
+    }
 
-    // Benign "no speech / no match / busy / timeout": the recognizer stopped
-    // before the user spoke. Silently re-open the mic a couple of times so a
-    // slow start doesn't force another double-tap. Only give up (silent tick)
-    // after the retries are exhausted.
+    // Benign "no speech / no match / timeout": the recognizer stopped before the
+    // user spoke. Re-open the mic once (after a safe delay) so a slow start
+    // doesn't force another double-tap. Then give up quietly.
     if (this.listenRetries < VoiceController.MAX_LISTEN_RETRIES) {
       this.listenRetries++;
       debugLog('stt', `re-listening (attempt ${this.listenRetries})`);
       this.setListenState('listening');
-      setTimeout(() => void this.openMic(), 300);
+      setTimeout(() => void this.openMic(), VoiceController.RETRY_DELAY_MS);
       return;
     }
 
@@ -294,7 +302,7 @@ export class VoiceController {
       if (this.listenRetries < VoiceController.MAX_LISTEN_RETRIES) {
         this.listenRetries++;
         this.setListenState('listening');
-        setTimeout(() => void this.openMic(), 300);
+        setTimeout(() => void this.openMic(), VoiceController.RETRY_DELAY_MS);
         return;
       }
       this.setListenState('idle');

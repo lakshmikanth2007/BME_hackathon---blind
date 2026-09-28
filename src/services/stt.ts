@@ -53,18 +53,12 @@ class SttService {
     this.handlers = handlers;
     this.listening = true;
     try {
-      // Android options: prefer the on-line Google engine, emit partial results
-      // (so we get live feedback), and allow a longer pause before the engine
-      // decides the user has finished — this makes short commands far more
-      // reliable to capture.
+      // Only pass the one broadly-supported option (partial results, for live
+      // feedback). Passing engine/timeout extras made some devices reject the
+      // request with ERROR_TOO_MANY_REQUESTS (code 10), so we keep it minimal
+      // and let the platform recognizer use its defaults.
       await Voice.start(LANGUAGE_TAGS[language], {
         EXTRA_PARTIAL_RESULTS: true,
-        RECOGNIZER_ENGINE: 'GOOGLE',
-        // Keep the mic open longer: don't finalize until ~3.5s of silence, and
-        // never finalize before 4s have passed, so the user has time to speak.
-        EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS: 3500,
-        EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS: 3500,
-        EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS: 4000,
       });
     } catch (e) {
       this.listening = false;
