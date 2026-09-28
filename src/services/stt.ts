@@ -53,7 +53,17 @@ class SttService {
     this.handlers = handlers;
     this.listening = true;
     try {
-      await Voice.start(LANGUAGE_TAGS[language]);
+      // Android options: prefer the on-line Google engine, emit partial results
+      // (so we get live feedback), and allow a longer pause before the engine
+      // decides the user has finished — this makes short commands far more
+      // reliable to capture.
+      await Voice.start(LANGUAGE_TAGS[language], {
+        EXTRA_PARTIAL_RESULTS: true,
+        RECOGNIZER_ENGINE: 'GOOGLE',
+        EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS: 2000,
+        EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS: 2000,
+        EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS: 1500,
+      });
     } catch (e) {
       this.listening = false;
       handlers.onError(String(e));

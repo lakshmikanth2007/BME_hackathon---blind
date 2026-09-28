@@ -91,7 +91,9 @@ export class AppController {
       // If a summary/live context is open, treat as a grounded question.
       if (this.summary.hasMedia() && (await this.summary.followUp(text))) return;
       if (this.live.isRunning() && (await this.live.question(text))) return;
-      this.voice.answer("I didn't understand. Say help to hear the commands.");
+      // Echo what was heard so the user knows the mic worked, even when the
+      // command wasn't recognised.
+      this.voice.answer(`I heard, ${text}. But I didn't understand. Say help to hear the commands.`);
       return;
     }
     await this.dispatch(intent.name, intent.target);

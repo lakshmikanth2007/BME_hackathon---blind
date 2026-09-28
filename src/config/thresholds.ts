@@ -31,7 +31,7 @@ export const TIMING = {
   /** Max time we wait for on-device command -> response start. */
   RESPONSE_BUDGET_MS: 1500,
   /** How long the mic listens after a wake before giving up. */
-  LISTEN_TIMEOUT_MS: 6000,
+  LISTEN_TIMEOUT_MS: 10000,
   /** Video summary auto-stop. */
   VIDEO_MAX_MS: 10000,
   /** Debounce for re-speaking identical alerts. */

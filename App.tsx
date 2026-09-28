@@ -22,6 +22,7 @@ import {
   PermissionsAndroid,
   Platform,
   View,
+  Linking,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import {
@@ -93,24 +94,41 @@ export default function App(): React.JSX.Element {
     AccessibilityInfo.announceForAccessibility('EyeSight starting.');
     void (async () => {
       // Camera + microphone permissions, requested up front.
+      let camStatus = 'not-determined';
       try {
-        await Camera.requestCameraPermission();
+        camStatus = await Camera.requestCameraPermission();
         await Camera.requestMicrophonePermission();
       } catch {
         /* ignore */
       }
       if (Platform.OS === 'android') {
         try {
-          await PermissionsAndroid.requestMultiple([
+          const res = await PermissionsAndroid.requestMultiple([
             PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
             PermissionsAndroid.PERMISSIONS.CAMERA,
           ]);
+          if (
+            res[PermissionsAndroid.PERMISSIONS.CAMERA] === 'granted'
+          ) {
+            camStatus = 'granted';
+          }
         } catch {
           /* ignore */
         }
       }
       setReady(true);
       app.greet();
+
+      // If the camera was previously denied (Android won't re-prompt), guide
+      // the user and open the system settings page so they can enable it.
+      if (camStatus !== 'granted') {
+        app.voice.answer(
+          'Camera access is turned off. I am opening settings. Please enable the camera permission for EyeSight, then come back.'
+        );
+        setTimeout(() => {
+          Linking.openSettings().catch(() => {});
+        }, 3500);
+      }
     })();
 
     const sub = AppState.addEventListener('change', (s) => {

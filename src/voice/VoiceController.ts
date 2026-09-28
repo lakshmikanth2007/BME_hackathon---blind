@@ -199,11 +199,30 @@ export class VoiceController {
     this.setListenState('listening');
     haptics.tick();
 
+    // Speak a short audible cue so the user knows the app is now listening,
+    // THEN open the mic (the mic can't be open while TTS plays). This directly
+    // answers "is it hearing me?".
+    tts.speak('Listening', {
+      language: this.language,
+      rate: this.rate,
+      volume: this.volume,
+      onDone: () => void this.openMic(),
+      onError: () => void this.openMic(),
+    });
+  }
+
+  /** Actually open the microphone after the "Listening" cue. */
+  private async openMic(): Promise<void> {
+    if (this.listenState !== 'listening') return;
     this.listenTimer = setTimeout(() => {
       void this.stopListening();
     }, TIMING.LISTEN_TIMEOUT_MS);
 
     await stt.start(this.language, {
+      onPartial: (text) => {
+        // Live feedback: proves the mic is hearing speech.
+        debugLog('stt-partial', text);
+      },
       onFinal: (text) => this.handleFinal(text),
       onError: (msg) => this.handleSttError(msg),
       onEnd: () => {
