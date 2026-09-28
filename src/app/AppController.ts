@@ -206,6 +206,8 @@ export class AppController {
       this.voice.answer(
         'The A I vision key is not set up, so this feature cannot run. Please add a valid A P I key.'
       );
+    } else if (/\b(503|429|overload|unavailable|high demand)\b/i.test(String(e))) {
+      this.voice.answer('The vision service is busy right now. Please try again in a moment.');
     } else {
       // A real network / server error from the vision call.
       this.voice.answer(

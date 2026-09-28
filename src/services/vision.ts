@@ -29,16 +29,30 @@ export const vision = {
 
   async describe(req: VisionRequest): Promise<string> {
     if (!hasVlmKey()) throw new OfflineError();
-    try {
-      const text =
-        env.vlmProvider === 'gemini'
-          ? await callGemini(req)
-          : await callClaude(req);
-      return text.trim();
-    } catch (e) {
-      debugLog('vision-error', String(e), 'error');
-      throw e;
+    const attempts = 3;
+    for (let i = 0; i < attempts; i++) {
+      try {
+        const text =
+          env.vlmProvider === 'gemini'
+            ? await callGemini(req)
+            : await callClaude(req);
+        return text.trim();
+      } catch (e) {
+        const msg = String(e);
+        // Retry transient overload / rate-limit errors with backoff.
+        const transient = /\b(503|429|overload|unavailable|high demand)\b/i.test(msg);
+        if (transient && i < attempts - 1) {
+          const delay = 800 * (i + 1);
+          debugLog('vision', `transient error, retrying in ${delay}ms`);
+          await new Promise((r) => setTimeout(r, delay));
+          continue;
+        }
+        debugLog('vision-error', msg, 'error');
+        throw e;
+      }
     }
+    // Unreachable, but satisfies the type checker.
+    throw new Error('vision: exhausted retries');
   },
 };
 
