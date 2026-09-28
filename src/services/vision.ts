@@ -80,10 +80,15 @@ async function callGemini(req: VisionRequest): Promise<string> {
   if (req.transcript) prompt += `\n\nAudio transcript: "${req.transcript}"`;
   parts.push({ text: prompt });
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${env.vlmModel}:generateContent?key=${env.vlmApiKey}`;
+  // Send the key via the x-goog-api-key header (works with both the legacy
+  // AIza... keys and the newer AQ.* keys) rather than the ?key= query param.
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${env.vlmModel}:generateContent`;
   const res = await fetch(url, {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: {
+      'content-type': 'application/json',
+      'x-goog-api-key': env.vlmApiKey,
+    },
     body: JSON.stringify({
       contents: [{ parts }],
       generationConfig: { maxOutputTokens: req.maxTokens ?? 400 },
