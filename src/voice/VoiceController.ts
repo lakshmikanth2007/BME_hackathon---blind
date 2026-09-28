@@ -231,28 +231,22 @@ export class VoiceController {
     this.setListenState('idle');
 
     const m = msg.toLowerCase();
-    const benign =
-      m.startsWith('6') ||
-      m.startsWith('7') ||
-      m.includes('no match') ||
-      m.includes('no speech') ||
-      m.includes('timeout');
-    if (benign) {
-      haptics.tick(); // silent cue: "I'm ready, try again"
-      return;
-    }
 
+    // Only two situations deserve a spoken interruption. Everything else
+    // (no speech heard, no match, client cancel, timeout) is normal during
+    // hands-free use, so we stay quiet and just give a haptic "ready" cue —
+    // no nagging.
     if (m.includes('permission') || m.startsWith('9')) {
       this.answer(
-        'I need microphone permission. Open settings and allow the microphone for EyeSight.'
+        'I need microphone permission. Please open settings and allow the microphone for EyeSight.'
       );
     } else if (m.includes('network') || m.startsWith('2')) {
-      this.answer('Speech recognition needs internet. Please check your connection.');
+      this.answer('Speech recognition needs an internet connection.');
     } else if (m.includes('busy') || m.startsWith('8')) {
       // Recognizer still shutting down from a previous turn; retry shortly.
       setTimeout(() => void this.startListening(), 400);
     } else {
-      this.answer("Sorry, I didn't catch that. Double-tap and try again.");
+      haptics.tick(); // silent cue: "I'm ready, try again"
     }
   }
 

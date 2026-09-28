@@ -58,10 +58,19 @@ export class AppController {
 
   /** Launch greeting, spoken once on startup. */
   greet(): void {
-    this.voice.answer('EyeSight ready. Say a command, or double-tap to talk.');
+    this.voice.answer('Welcome to EyeSight, your voice assistant for the world around you.');
     this.voice.answer(
-      'A reminder: I assist your white cane or guide dog. I do not replace them.'
+      'I can read printed text aloud, describe what the camera sees, tell you about ' +
+        'obstacles ahead, guide you to a door, and narrate your surroundings live.'
     );
+    this.voice.answer(
+      'To use me, double-tap anywhere on the screen, then speak. For example, say ' +
+        'describe this, or read this, or what is in front of me. Say help any time to hear all commands.'
+    );
+    this.voice.answer(
+      'One reminder: I assist your white cane or guide dog. I do not replace them.'
+    );
+    this.voice.answer('Ready. Double-tap and speak.');
   }
 
   /** Double-tap fallback from the UI. */
