@@ -35,6 +35,7 @@ import { makeAppHooks, registerCamera } from '@/app/cameraHooks';
 import { DebugScreen } from '@/app/DebugScreen';
 import { TIMING } from '@/config/thresholds';
 import { debugLog } from '@/state/debugLog';
+import { env, hasVlmKey } from '@/config/env';
 
 export default function App(): React.JSX.Element {
   const [showDebug, setShowDebug] = useState(false);
@@ -93,6 +94,13 @@ export default function App(): React.JSX.Element {
 
   useEffect(() => {
     AccessibilityInfo.announceForAccessibility('EyeSight starting.');
+    // Startup diagnostic: is the vision API key actually loaded into the bundle?
+    debugLog(
+      'config',
+      `provider=${env.vlmProvider} model=${env.vlmModel} key=${
+        hasVlmKey() ? 'SET (' + env.vlmApiKey.length + ' chars)' : 'MISSING'
+      }`
+    );
     void (async () => {
       // Camera + microphone permissions, requested up front.
       let camStatus = 'not-determined';
