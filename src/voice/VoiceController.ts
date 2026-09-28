@@ -205,11 +205,7 @@ export class VoiceController {
 
     await stt.start(this.language, {
       onFinal: (text) => this.handleFinal(text),
-      onError: (msg) => {
-        debugLog('stt-error', msg, 'error');
-        this.setListenState('idle');
-        this.answer("Sorry, I didn't catch that. Double-tap and try again.");
-      },
+      onError: (msg) => this.handleSttError(msg),
       onEnd: () => {
         if (this.listenTimer) clearTimeout(this.listenTimer);
       },
@@ -220,6 +216,44 @@ export class VoiceController {
     if (this.listenTimer) clearTimeout(this.listenTimer);
     await stt.stop();
     if (this.listenState === 'listening') this.setListenState('idle');
+  }
+
+  /**
+   * Classify STT errors. Android reports numeric codes; the common ones during
+   * normal use are "no speech" (6) and "no match" (7) — those are NOT failures,
+   * they just mean the user hasn't spoken yet, so we stay quiet (a soft tick)
+   * instead of nagging. Only real problems (permission, network, busy) get a
+   * spoken explanation with a fix.
+   */
+  private handleSttError(msg: string): void {
+    if (this.listenTimer) clearTimeout(this.listenTimer);
+    debugLog('stt-error', msg, 'error');
+    this.setListenState('idle');
+
+    const m = msg.toLowerCase();
+    const benign =
+      m.startsWith('6') ||
+      m.startsWith('7') ||
+      m.includes('no match') ||
+      m.includes('no speech') ||
+      m.includes('timeout');
+    if (benign) {
+      haptics.tick(); // silent cue: "I'm ready, try again"
+      return;
+    }
+
+    if (m.includes('permission') || m.startsWith('9')) {
+      this.answer(
+        'I need microphone permission. Open settings and allow the microphone for EyeSight.'
+      );
+    } else if (m.includes('network') || m.startsWith('2')) {
+      this.answer('Speech recognition needs internet. Please check your connection.');
+    } else if (m.includes('busy') || m.startsWith('8')) {
+      // Recognizer still shutting down from a previous turn; retry shortly.
+      setTimeout(() => void this.startListening(), 400);
+    } else {
+      this.answer("Sorry, I didn't catch that. Double-tap and try again.");
+    }
   }
 
   private handleFinal(text: string): void {

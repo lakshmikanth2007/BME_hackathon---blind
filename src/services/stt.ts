@@ -31,7 +31,12 @@ class SttService {
     };
     Voice.onSpeechError = (e: SpeechErrorEvent) => {
       this.listening = false;
-      this.handlers?.onError(e.error?.message ?? 'speech recognition error');
+      // Android surfaces a code (e.g. "7/No match", "6/No speech") plus a
+      // message; forward both so the controller can distinguish benign
+      // "nothing heard" from real failures (permissions, network).
+      const code = e.error?.code ?? '';
+      const message = e.error?.message ?? 'speech recognition error';
+      this.handlers?.onError(`${code} ${message}`.trim());
     };
     Voice.onSpeechEnd = () => {
       this.listening = false;

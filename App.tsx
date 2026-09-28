@@ -21,6 +21,8 @@ import {
   StyleSheet,
   AppState,
   AccessibilityInfo,
+  PermissionsAndroid,
+  Platform,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { AppController } from '@/app/AppController';
@@ -28,7 +30,6 @@ import { makeAppHooks } from '@/app/cameraHooks';
 import { DebugScreen } from '@/app/DebugScreen';
 import { TIMING } from '@/config/thresholds';
 import { checkOnline } from '@/services/connectivity';
-import { hasVlmKey } from '@/config/env';
 
 export default function App(): React.JSX.Element {
   const [showDebug, setShowDebug] = useState(false);
@@ -46,11 +47,25 @@ export default function App(): React.JSX.Element {
 
   useEffect(() => {
     AccessibilityInfo.announceForAccessibility('EyeSight starting.');
-    app.greet();
     void (async () => {
+      // Ask for mic + camera up front so voice commands work immediately.
+      if (Platform.OS === 'android') {
+        try {
+          await PermissionsAndroid.requestMultiple([
+            PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
+            PermissionsAndroid.PERMISSIONS.CAMERA,
+          ]);
+        } catch {
+          /* ignore — features will prompt again on use */
+        }
+      }
+      app.greet();
+      // Only warn about connectivity when we are actually offline. A missing
+      // API key is handled per-feature (those features explain when invoked),
+      // so we don't nag at startup.
       const online = await checkOnline();
-      if (!online || !hasVlmKey()) {
-        app.voice.answer('No internet, some features are limited.');
+      if (!online) {
+        app.voice.answer('No internet. Reading and obstacle detection still work.');
       }
     })();
 
