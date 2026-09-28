@@ -202,9 +202,15 @@ export class AppController {
 
   private speakVisionError(e: unknown): void {
     if (e instanceof OfflineError) {
-      this.voice.answer('This needs internet, or an A P I key that is not set.');
+      // OfflineError means no API key is configured — not a network failure.
+      this.voice.answer(
+        'The A I vision key is not set up, so this feature cannot run. Please add a valid A P I key.'
+      );
     } else {
-      this.voice.answer('Sorry, I could not analyze that. Please try again.');
+      // A real network / server error from the vision call.
+      this.voice.answer(
+        'I could not reach the vision service. Please check your internet and try again.'
+      );
     }
     debugLog('vision-error', String(e), 'error');
   }
