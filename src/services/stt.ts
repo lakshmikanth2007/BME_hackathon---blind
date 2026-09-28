@@ -60,9 +60,11 @@ class SttService {
       await Voice.start(LANGUAGE_TAGS[language], {
         EXTRA_PARTIAL_RESULTS: true,
         RECOGNIZER_ENGINE: 'GOOGLE',
-        EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS: 2000,
-        EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS: 2000,
-        EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS: 1500,
+        // Keep the mic open longer: don't finalize until ~3.5s of silence, and
+        // never finalize before 4s have passed, so the user has time to speak.
+        EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS: 3500,
+        EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS: 3500,
+        EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS: 4000,
       });
     } catch (e) {
       this.listening = false;

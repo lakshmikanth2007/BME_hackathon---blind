@@ -48,6 +48,10 @@ export class VoiceController {
 
   private listenState: ListenState = 'idle';
   private listenTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Auto-retries for the current listen session, so a missed start doesn't
+   * force the user to double-tap again. */
+  private listenRetries = 0;
+  private static MAX_LISTEN_RETRIES = 2;
 
   /** Last thing said at each priority, for "repeat". */
   private lastSpoken = new Map<SpeechPriority, string>();
@@ -196,6 +200,7 @@ export class VoiceController {
     this.speaking = false;
     this.current = null;
 
+    this.listenRetries = 0;
     this.setListenState('listening');
     haptics.tick();
 
@@ -247,38 +252,55 @@ export class VoiceController {
   private handleSttError(msg: string): void {
     if (this.listenTimer) clearTimeout(this.listenTimer);
     debugLog('stt-error', msg, 'error');
-    this.setListenState('idle');
 
     const m = msg.toLowerCase();
 
-    // Only two situations deserve a spoken interruption. Everything else
-    // (no speech heard, no match, client cancel, timeout) is normal during
-    // hands-free use, so we stay quiet and just give a haptic "ready" cue —
-    // no nagging.
     if (m.includes('permission') || m.startsWith('9')) {
+      this.setListenState('idle');
       this.answer(
         'I need microphone permission. Please open settings and allow the microphone for EyeSight.'
       );
-    } else if (m.includes('network') || m.startsWith('2')) {
-      this.answer('Speech recognition needs an internet connection.');
-    } else if (m.includes('busy') || m.startsWith('8')) {
-      // Recognizer still shutting down from a previous turn; retry shortly.
-      setTimeout(() => void this.startListening(), 400);
-    } else {
-      haptics.tick(); // silent cue: "I'm ready, try again"
+      return;
     }
+    if (m.includes('network') || m.startsWith('2')) {
+      this.setListenState('idle');
+      this.answer('Speech recognition needs an internet connection.');
+      return;
+    }
+
+    // Benign "no speech / no match / busy / timeout": the recognizer stopped
+    // before the user spoke. Silently re-open the mic a couple of times so a
+    // slow start doesn't force another double-tap. Only give up (silent tick)
+    // after the retries are exhausted.
+    if (this.listenRetries < VoiceController.MAX_LISTEN_RETRIES) {
+      this.listenRetries++;
+      debugLog('stt', `re-listening (attempt ${this.listenRetries})`);
+      this.setListenState('listening');
+      setTimeout(() => void this.openMic(), 300);
+      return;
+    }
+
+    this.setListenState('idle');
+    haptics.tick(); // silent cue: "I'm ready, double-tap to try again"
   }
 
   private handleFinal(text: string): void {
     if (this.listenTimer) clearTimeout(this.listenTimer);
     const clean = text.trim();
     debugLog('transcript', clean);
-    this.setListenState('processing');
     void stt.stop();
     if (clean.length === 0) {
+      // Heard nothing usable — retry the listen window before giving up.
+      if (this.listenRetries < VoiceController.MAX_LISTEN_RETRIES) {
+        this.listenRetries++;
+        this.setListenState('listening');
+        setTimeout(() => void this.openMic(), 300);
+        return;
+      }
       this.setListenState('idle');
       return;
     }
+    this.setListenState('processing');
     this.cb.onTranscript(clean);
     this.setListenState('idle');
   }
