@@ -191,7 +191,10 @@ export class AppController {
       }
     };
     void tick();
-    this.obstacleTimer = setInterval(() => void tick(), 4500);
+    // 8s cadence to conserve free-tier request quota; continuous scanning is
+    // request-heavy, so on the free tier prefer the one-shot "what's in front
+    // of me" command instead.
+    this.obstacleTimer = setInterval(() => void tick(), 8000);
   }
 
   private stopCloudObstacleLoop(): void {
@@ -206,7 +209,11 @@ export class AppController {
       this.voice.answer(
         'The A I vision key is not set up, so this feature cannot run. Please add a valid A P I key.'
       );
-    } else if (/\b(503|429|overload|unavailable|high demand)\b/i.test(String(e))) {
+    } else if (/\b(429|quota|resource_exhausted)\b/i.test(String(e))) {
+      this.voice.answer(
+        'The daily free limit for this model has been reached. Please try again later, or switch to another model.'
+      );
+    } else if (/\b(503|overload|unavailable|high demand)\b/i.test(String(e))) {
       this.voice.answer('The vision service is busy right now. Please try again in a moment.');
     } else {
       // A real network / server error from the vision call.

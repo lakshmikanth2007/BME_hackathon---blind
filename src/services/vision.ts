@@ -41,8 +41,10 @@ export const vision = {
         return text.trim();
       } catch (e) {
         const msg = String(e);
-        // Retry transient overload / rate-limit errors with backoff.
-        const transient = /\b(503|429|overload|unavailable|high demand)\b/i.test(msg);
+        // Retry only transient SERVER overloads. Do NOT retry 429/quota errors:
+        // on the free tier that's a daily cap, so retrying just wastes more of
+        // the remaining quota.
+        const transient = /\b(503|overload|unavailable|high demand)\b/i.test(msg);
         if (transient && i < attempts - 1) {
           const delay = 800 * (i + 1);
           debugLog('vision', `transient error, retrying in ${delay}ms`);
