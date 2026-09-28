@@ -35,7 +35,9 @@ export const vision = {
         const text =
           env.vlmProvider === 'gemini'
             ? await callGemini(req)
-            : await callClaude(req);
+            : env.vlmProvider === 'groq'
+              ? await callGroq(req)
+              : await callClaude(req);
         return text.trim();
       } catch (e) {
         const msg = String(e);
@@ -115,4 +117,37 @@ async function callGemini(req: VisionRequest): Promise<string> {
   return (
     json.candidates?.[0]?.content?.parts?.map((p) => p.text ?? '').join(' ') ?? ''
   );
+}
+
+async function callGroq(req: VisionRequest): Promise<string> {
+  // Groq exposes an OpenAI-compatible chat/completions API with vision support
+  // on the Llama-4 models. Images are passed as data URLs in the message content.
+  const content: unknown[] = [];
+  let prompt = req.prompt;
+  if (req.transcript) prompt += `\n\nAudio transcript: "${req.transcript}"`;
+  content.push({ type: 'text', text: prompt });
+  for (const img of req.imagesBase64) {
+    content.push({
+      type: 'image_url',
+      image_url: { url: `data:image/jpeg;base64,${img}` },
+    });
+  }
+
+  const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      authorization: `Bearer ${env.vlmApiKey}`,
+    },
+    body: JSON.stringify({
+      model: env.vlmModel,
+      max_tokens: req.maxTokens ?? 400,
+      messages: [{ role: 'user', content }],
+    }),
+  });
+  if (!res.ok) throw new Error(`Groq ${res.status}: ${await res.text()}`);
+  const json = (await res.json()) as {
+    choices: { message: { content: string } }[];
+  };
+  return json.choices?.[0]?.message?.content ?? '';
 }
