@@ -20,7 +20,7 @@ function readEnv(): EnvConfig {
     vlmApiKey: process.env.EXPO_PUBLIC_VLM_API_KEY ?? '',
     vlmModel:
       process.env.EXPO_PUBLIC_VLM_MODEL ??
-      (provider === 'gemini' ? 'gemini-2.0-flash' : 'claude-sonnet-5'),
+      (provider === 'gemini' ? 'gemini-3.8-flash' : 'claude-sonnet-5'),
     porcupineKey: process.env.EXPO_PUBLIC_PORCUPINE_ACCESS_KEY ?? '',
   };
 }
