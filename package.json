@@ -1,0 +1,36 @@
+{
+  "name": "eyesight",
+  "version": "0.1.0",
+  "description": "EyeSight — a voice-first assistive mobile app for blind and visually impaired users.",
+  "main": "index.ts",
+  "scripts": {
+    "start": "expo start --dev-client",
+    "android": "expo run:android",
+    "prebuild": "expo prebuild",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint . --ext .ts,.tsx",
+    "test": "jest"
+  },
+  "dependencies": {
+    "expo": "~51.0.0",
+    "expo-dev-client": "~4.0.0",
+    "expo-haptics": "~13.0.0",
+    "expo-speech": "~12.0.0",
+    "expo-status-bar": "~1.12.0",
+    "react": "18.2.0",
+    "react-native": "0.74.5",
+    "react-native-vision-camera": "^4.5.0",
+    "@react-native-voice/voice": "^3.2.4",
+    "@react-native-async-storage/async-storage": "1.23.1"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.24.0",
+    "@types/react": "~18.2.79",
+    "@types/jest": "^29.5.12",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.1.5",
+    "typescript": "~5.3.3",
+    "eslint": "^8.57.0"
+  },
+  "private": true
+}

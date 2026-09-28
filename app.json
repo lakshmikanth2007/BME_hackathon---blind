@@ -1,0 +1,33 @@
+{
+  "expo": {
+    "name": "EyeSight",
+    "slug": "eyesight",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "assetBundlePatterns": ["**/*"],
+    "android": {
+      "package": "com.eyesight.app",
+      "permissions": [
+        "CAMERA",
+        "RECORD_AUDIO",
+        "VIBRATE",
+        "INTERNET"
+      ]
+    },
+    "plugins": [
+      "expo-dev-client",
+      [
+        "react-native-vision-camera",
+        {
+          "cameraPermissionText": "EyeSight needs the camera to read documents and detect obstacles.",
+          "enableMicrophonePermission": true,
+          "microphonePermissionText": "EyeSight needs the microphone to hear your voice commands."
+        }
+      ]
+    ],
+    "extra": {
+      "eas": { "projectId": "" }
+    }
+  }
+}
